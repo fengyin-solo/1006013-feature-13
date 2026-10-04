@@ -68,4 +68,8 @@ npm run build
 - 字段、状态、动作与流转目标集中在 `frontend/src/data/modules.ts`；示例数据在
   `frontend/src/data/seed.ts`。
 - 状态流转只允许在 `local-service.ts` 里改，页面组件不做业务判断。
+- 除冰作业的用量报表（按型号 + 时间范围导出）与页面上的合计共用 `frontend/src/api/deice-service.ts`
+  里的同一套口径：作业时长一律按开始/结束时间重算，登记时手填的旧值不参与；除冰任务状态只能
+  逐级向后流转（待除冰 → 除冰中 → 待确认 → 已完成），同一除冰车同一时段只允许一条在办任务
+  （先到先得，确认完成后才放车）。
 - 想回到初始数据：清掉浏览器里 `airport-ground-ops:entries` 这一项，或调用 `resetModule(模块)`。
