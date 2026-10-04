@@ -1,9 +1,15 @@
 import { MODULE_BY_KEY } from '@/data/modules'
 import { allRows, listRows, resetRows, saveRows } from '@/data/local-store'
-import type { ActionResult, EntryRow, ModuleMeta, OverviewResult, PageResult } from '@/data/types'
+import { deiceTransitionHook } from '@/api/deice'
+import type { ActionResult, EntryRow, ModuleMeta, OverviewResult, PageResult, TransitionHook, TransitionHookResult } from '@/data/types'
 
 // 会写进数据的「往回走」动作：命中就把这条记录标成异常态，看板上能一眼看出来。
 const NEGATIVE_ACTIONS = ['撤销', '作废', '拒绝', '驳回', '停用', '忽略', '下线', '回滚']
+
+// 模块级流转钩子：在通用校验（动作登记、状态顺序）之后执行，做资源冲突检查、补登字段等。
+const TRANSITION_HOOKS: Record<string, TransitionHook> = {
+  deice: deiceTransitionHook,
+}
 
 export function moduleMeta(key: string): ModuleMeta {
   const meta = MODULE_BY_KEY.get(key)
@@ -43,9 +49,25 @@ export function runAction(key: string, id: number, action: string): ActionResult
   if (current === target) {
     return { ok: false, message: `${meta.entity}已经是「${target}」，不用重复操作` }
   }
+  // 状态顺序：声明了 actionFrom 的模块只能逐级往下走，跨级与回退一律驳回。
+  const from = meta.actionFrom?.[action]
+  if (from && !from.includes(current)) {
+    return {
+      ok: false,
+      message: `${meta.entity}只能按「${meta.statuses.join('→')}」逐级流转，「${action}」要求当前状态为「${from.join('」「')}」，实际为「${current}」，已驳回`,
+    }
+  }
+  const hook = TRANSITION_HOOKS[key]
+  const outcome: TransitionHookResult = hook
+    ? hook(rows[index], action, target, rows)
+    : { ok: true }
+  if (!outcome.ok) {
+    return { ok: false, message: outcome.message ?? `${meta.entity}的「${action}」未通过校验，已驳回` }
+  }
   const lastStatus = meta.statuses[meta.statuses.length - 1]
   const updated: EntryRow = {
     ...rows[index],
+    ...(outcome.fields ?? {}),
     status: target,
     pending: target !== lastStatus,
     abnormal: NEGATIVE_ACTIONS.some((verb) => action.startsWith(verb)),

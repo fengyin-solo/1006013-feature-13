@@ -17,6 +17,8 @@ export type ModuleMeta = {
   statuses: string[]
   actions: string[]
   actionTargets: Record<string, string>
+  // 每个动作允许的起始状态：声明了的模块只能逐级流转，跨级与回退一律驳回。
+  actionFrom?: Record<string, string[]>
   metrics: string[]
 }
 
@@ -31,6 +33,20 @@ export type ActionResult = {
   ok: boolean
   message: string
 }
+
+// 模块级流转钩子：在通用校验之后执行，可做资源冲突检查、补登字段等。
+export type TransitionHookResult = {
+  ok: boolean
+  message?: string
+  fields?: Record<string, string | number | boolean>
+}
+
+export type TransitionHook = (
+  row: EntryRow,
+  action: string,
+  target: string,
+  rows: EntryRow[],
+) => TransitionHookResult
 
 export type OverviewResult = {
   cards: { label: string; value: number }[]
